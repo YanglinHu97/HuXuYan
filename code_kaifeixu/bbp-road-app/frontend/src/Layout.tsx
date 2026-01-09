@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type NavKey = "dashboard" | "segments" | "reports" | "trips" | "history" | "detection" | "settings";
+export type NavKey = "dashboard" | "segments" | "reports" | "trips" | "history" | "detection" | "settings" | "route-planning";
 
 export default function Layout(props: {
   userId: number;
@@ -56,6 +56,7 @@ export default function Layout(props: {
           <NavBtn k="dashboard" label="Dashboard" icon="📊" />
           <NavBtn k="segments" label="Segments" icon="🛣️" />
           <NavBtn k="reports" label="Reports" icon="📝" />
+          <NavBtn k="route-planning" label="Route Planning" icon="🧭" />
           <NavBtn k="trips" label="Plan Trip" icon="🗺️" />
           <NavBtn k="history" label="Trip History" icon="📜" />
           <NavBtn k="detection" label="Auto Detection" icon="🔍" />

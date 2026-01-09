@@ -215,3 +215,47 @@ export type Stats = {
 export async function getStats(): Promise<Stats> {
   return request<Stats>(`/stats`);
 }
+
+// ---- Route Planning with Scoring ----
+export type Coordinate = {
+  lat: number;
+  lon: number;
+};
+
+export type SegmentWarning = {
+  lat: number;
+  lon: number;
+  type: string;
+};
+
+export type ScoredRoute = {
+  route_id: string;
+  rank: number;
+  total_distance: number; // meters
+  road_quality_score: number; // 0-100, higher is better
+  tags: string[];
+  geometry: string; // polyline encoded
+  geometry_geojson: {
+    type: string;
+    coordinates: [number, number][];
+  };
+  segments_warning: SegmentWarning[];
+};
+
+export type PathSearchResponse = {
+  routes: ScoredRoute[];
+};
+
+export type PathSearchPreference = "safety_first" | "shortest" | "balanced";
+
+export async function searchRoutes(
+  origin: Coordinate,
+  destination: Coordinate,
+  preferences: PathSearchPreference = "balanced"
+): Promise<PathSearchResponse> {
+  return request<PathSearchResponse>("/path/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ origin, destination, preferences }),
+  });
+}

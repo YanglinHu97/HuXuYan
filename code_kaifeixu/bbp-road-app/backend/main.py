@@ -130,6 +130,33 @@ class RoutesRequest(BaseModel):
     n: int = Field(default=3, ge=1, le=5)
 
 
+class Coordinate(BaseModel):
+    lat: float
+    lon: float
+
+
+class PathSearchRequest(BaseModel):
+    origin: Coordinate
+    destination: Coordinate
+    preferences: str = Field(default="balanced")  # "safety_first", "shortest", "balanced"
+
+
+class SegmentWarning(BaseModel):
+    lat: float
+    lon: float
+    type: str
+
+
+class RouteResult(BaseModel):
+    route_id: str
+    rank: int
+    total_distance: float  # meters
+    road_quality_score: float  # higher is better (0-100)
+    tags: List[str]
+    geometry: str  # polyline encoded string or GeoJSON
+    segments_warning: List[SegmentWarning]
+
+
 def seed_demo_data():
     """Optional starter data for quick testing."""
     global _next_user_id, _next_segment_id
@@ -558,3 +585,234 @@ def preview_routes(req: RoutesRequest):
         )
 
     return routes
+
+
+# ---- Path Search with Scoring ----
+def point_to_segment_distance(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> float:
+    """Distance from point (px, py) to line segment (ax, ay)-(bx, by)."""
+    abx = bx - ax
+    aby = by - ay
+    apx = px - ax
+    apy = py - ay
+    ab_sq = abx * abx + aby * aby
+    if ab_sq == 0:
+        return math.sqrt(apx * apx + apy * apy)
+    t = max(0, min(1, (apx * abx + apy * aby) / ab_sq))
+    proj_x = ax + t * abx
+    proj_y = ay + t * aby
+    return math.sqrt((px - proj_x) ** 2 + (py - proj_y) ** 2)
+
+
+def find_segments_near_route(route_coords: List[List[float]], tolerance_deg: float = 0.002) -> List[Dict[str, Any]]:
+    """
+    Find all segments in the database that are near the given route.
+    route_coords: list of [lon, lat] pairs
+    tolerance_deg: roughly ~200m at equator
+    """
+    nearby_segments = []
+    for seg in SEGMENTS.values():
+        seg_start = (seg["start_lon"], seg["start_lat"])
+        seg_end = (seg["end_lon"], seg["end_lat"])
+        seg_mid_lon = (seg_start[0] + seg_end[0]) / 2
+        seg_mid_lat = (seg_start[1] + seg_end[1]) / 2
+        
+        # Check if segment midpoint is close to any point in route
+        for i in range(len(route_coords) - 1):
+            lon1, lat1 = route_coords[i]
+            lon2, lat2 = route_coords[i + 1]
+            dist = point_to_segment_distance(seg_mid_lon, seg_mid_lat, lon1, lat1, lon2, lat2)
+            if dist < tolerance_deg:
+                nearby_segments.append(seg)
+                break
+    return nearby_segments
+
+
+def calculate_route_score(
+    distance_m: float,
+    nearby_segments: List[Dict[str, Any]],
+    preferences: str = "balanced"
+) -> tuple:
+    """
+    Calculate route score. Returns (score, quality_score, pothole_count, bad_road_length, tags, warnings).
+    
+    Score formula: Score = Distance + (PotholeCount × 500m) + (BadRoadLength × 2.0)
+    Lower score = better route
+    
+    quality_score: 0-100 (higher is better) for display purposes
+    """
+    pothole_count = 0
+    bad_road_length_m = 0.0
+    warnings = []
+    
+    for seg in nearby_segments:
+        status = seg.get("status", "optimal")
+        obstacle = seg.get("obstacle")
+        seg_len = haversine_m(
+            seg["start_lat"], seg["start_lon"],
+            seg["end_lat"], seg["end_lon"]
+        )
+        
+        # Count potholes
+        if obstacle and "pothole" in obstacle.lower():
+            pothole_count += 1
+            warnings.append({
+                "lat": (seg["start_lat"] + seg["end_lat"]) / 2,
+                "lon": (seg["start_lon"] + seg["end_lon"]) / 2,
+                "type": "Pothole"
+            })
+        
+        # Count bad road segments
+        if status in ("maintenance", "suboptimal"):
+            bad_road_length_m += seg_len
+            if status == "maintenance" and not any(w["type"] == "Pothole" for w in warnings if 
+                abs(w["lat"] - (seg["start_lat"] + seg["end_lat"]) / 2) < 0.0001):
+                warnings.append({
+                    "lat": (seg["start_lat"] + seg["end_lat"]) / 2,
+                    "lon": (seg["start_lon"] + seg["end_lon"]) / 2,
+                    "type": "Bad Road"
+                })
+    
+    # Calculate penalty-based score (lower is better)
+    if preferences == "safety_first":
+        # Heavy penalty for potholes and bad roads
+        penalty = (pothole_count * 800) + (bad_road_length_m * 3.0)
+    elif preferences == "shortest":
+        # Light penalty, prioritize distance
+        penalty = (pothole_count * 100) + (bad_road_length_m * 0.5)
+    else:  # balanced
+        penalty = (pothole_count * 500) + (bad_road_length_m * 2.0)
+    
+    score = distance_m + penalty
+    
+    # Calculate quality score (0-100, higher is better)
+    # Based on percentage of route without issues
+    max_penalty = distance_m * 2  # theoretical maximum penalty
+    if max_penalty > 0:
+        quality_score = max(0, min(100, 100 - (penalty / max_penalty) * 100))
+    else:
+        quality_score = 100
+    
+    # Generate tags
+    tags = []
+    if pothole_count == 0 and bad_road_length_m == 0:
+        tags.append("Best Surface")
+    elif pothole_count > 0:
+        tags.append("Bumpy")
+    if bad_road_length_m > 100:
+        tags.append("Road Work")
+    
+    return score, quality_score, pothole_count, bad_road_length_m, tags, warnings
+
+
+def encode_polyline(coords: List[List[float]], precision: int = 5) -> str:
+    """
+    Encode coordinates to polyline format.
+    coords: list of [lon, lat] pairs
+    """
+    def encode_value(value: int) -> str:
+        result = ""
+        value = ~(value << 1) if value < 0 else (value << 1)
+        while value >= 0x20:
+            result += chr((0x20 | (value & 0x1f)) + 63)
+            value >>= 5
+        result += chr(value + 63)
+        return result
+    
+    encoded = ""
+    prev_lat, prev_lon = 0, 0
+    multiplier = 10 ** precision
+    
+    for lon, lat in coords:
+        lat_int = round(lat * multiplier)
+        lon_int = round(lon * multiplier)
+        encoded += encode_value(lat_int - prev_lat)
+        encoded += encode_value(lon_int - prev_lon)
+        prev_lat, prev_lon = lat_int, lon_int
+    
+    return encoded
+
+
+@app.post("/api/path/search")
+def path_search(req: PathSearchRequest):
+    """
+    Search for routes with road quality scoring.
+    Returns 1-3 candidate routes sorted by score (best first).
+    """
+    origin = req.origin
+    dest = req.destination
+    preferences = req.preferences
+    
+    # Generate candidate routes (similar to preview_routes but with scoring)
+    base = path_line(origin.lat, origin.lon, dest.lat, dest.lon, steps=32)
+    
+    mid_lat = (origin.lat + dest.lat) / 2.0
+    mid_lon = (origin.lon + dest.lon) / 2.0
+    dlat = dest.lat - origin.lat
+    dlon = dest.lon - origin.lon
+    
+    px, py = dlon, -dlat
+    norm = math.sqrt(px * px + py * py) or 1.0
+    px /= norm
+    py /= norm
+    
+    # Generate up to 3 route variants
+    route_configs = [
+        (0.0, "A"),      # Direct route
+        (0.012, "B"),    # Alternative 1 (curve right)
+        (-0.012, "C"),   # Alternative 2 (curve left)
+    ]
+    
+    candidates = []
+    for offset, route_id in route_configs:
+        if abs(offset) < 1e-9:
+            coords = base
+        else:
+            via_lat = mid_lat + py * offset
+            via_lon = mid_lon + px * offset
+            coords = path_via(origin.lat, origin.lon, dest.lat, dest.lon, via_lat, via_lon, steps_each=18)
+        
+        distance_m = path_distance_m(coords)
+        
+        # Find segments near this route and calculate score
+        nearby_segs = find_segments_near_route(coords)
+        score, quality_score, pothole_count, bad_road_len, tags, warnings = calculate_route_score(
+            distance_m, nearby_segs, preferences
+        )
+        
+        # Add distance-related tags
+        if offset == 0.0:
+            if pothole_count == 0 and bad_road_len == 0:
+                tags = ["Shortest", "Best Surface"] if "Best Surface" not in tags else tags
+            else:
+                tags.insert(0, "Shortest")
+        elif distance_m > path_distance_m(base):
+            tags.append("Slightly Longer")
+        
+        candidates.append({
+            "route_id": route_id,
+            "coords": coords,
+            "distance_m": distance_m,
+            "score": score,
+            "quality_score": quality_score,
+            "tags": tags,
+            "warnings": warnings,
+        })
+    
+    # Sort by score (lower is better)
+    candidates.sort(key=lambda x: x["score"])
+    
+    # Build response
+    routes = []
+    for rank, candidate in enumerate(candidates, start=1):
+        routes.append({
+            "route_id": candidate["route_id"],
+            "rank": rank,
+            "total_distance": round(candidate["distance_m"], 1),
+            "road_quality_score": round(candidate["quality_score"], 1),
+            "tags": candidate["tags"],
+            "geometry": encode_polyline(candidate["coords"]),
+            "geometry_geojson": {"type": "LineString", "coordinates": candidate["coords"]},
+            "segments_warning": candidate["warnings"],
+        })
+    
+    return {"routes": routes}

@@ -7,6 +7,7 @@ import TripsPage from "./TripsPage";
 import TripHistoryPage from "./TripHistoryPage";
 import AutoDetectionPage from "./AutoDetectionPage";
 import SettingsPage from "./SettingsPage";
+import RoutePlanningPage from "./RoutePlanningPage";
 import LoginPage from "./LoginPage";
 import type { User } from "./api";
 
@@ -41,6 +42,8 @@ export default function App() {
         />
       ) : nav === "reports" ? (
         <ReportsPage userId={user.id} selectedSegmentId={selectedSegmentId} />
+      ) : nav === "route-planning" ? (
+        <RoutePlanningPage />
       ) : nav === "trips" ? (
         <TripsPage userId={user.id} />
       ) : nav === "history" ? (
