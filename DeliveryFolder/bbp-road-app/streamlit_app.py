@@ -168,15 +168,19 @@ elif menu == "🗺️ Route Planning":
     if st.button("🔍 Find Routes", use_container_width=True):
         with st.spinner("Fetching routes from OSRM..."):
             routes = api_post("/api/path/search", {
-                "from_lat": from_lat,
-                "from_lon": from_lon,
-                "to_lat": to_lat,
-                "to_lon": to_lon,
-                "mode": mode
+                "origin": {"lat": from_lat, "lon": from_lon},
+                "destination": {"lat": to_lat, "lon": to_lon},
+                "preferences": mode
             }, {"user_id": user_id})
             
             if routes and routes.get("routes"):
                 st.success(f"✅ Found {len(routes['routes'])} routes!")
+                
+                # Show weather info
+                if routes.get("weather_summary"):
+                    st.info(f"🌤️ {routes['weather_summary']}")
+                if routes.get("cycling_recommendation"):
+                    st.write(f"🚲 {routes['cycling_recommendation']}")
                 
                 # Create map
                 m = folium.Map(location=[(from_lat + to_lat)/2, (from_lon + to_lon)/2], zoom_start=14)
@@ -188,7 +192,9 @@ elif menu == "🗺️ Route Planning":
                 # Add routes
                 colors = ["blue", "purple", "orange", "darkgreen", "darkred"]
                 for i, route in enumerate(routes["routes"][:5]):
-                    coords = route.get("geometry", {}).get("coordinates", [])
+                    # Get geometry from GeoJSON format
+                    geojson = route.get("geometry_geojson", {})
+                    coords = geojson.get("coordinates", [])
                     if coords:
                         # Convert [lon, lat] to [lat, lon] for folium
                         latlon_coords = [[c[1], c[0]] for c in coords]
@@ -197,7 +203,7 @@ elif menu == "🗺️ Route Planning":
                             color=colors[i % len(colors)],
                             weight=4 if i == 0 else 3,
                             opacity=0.8 if i == 0 else 0.5,
-                            popup=f"Route {i+1}: {route.get('label', 'N/A')}"
+                            popup=f"Route {route.get('route_id', i+1)}"
                         ).add_to(m)
                 
                 st_folium(m, width=700, height=500)
@@ -205,15 +211,22 @@ elif menu == "🗺️ Route Planning":
                 # Route details
                 st.subheader("📋 Route Details")
                 for i, route in enumerate(routes["routes"][:5]):
-                    with st.expander(f"Route {i+1}: {route.get('label', 'Unknown')}", expanded=(i==0)):
+                    tags_display = ", ".join(route.get("tags_localized", route.get("tags", [])))
+                    with st.expander(f"Route {route.get('route_id', i+1)}: {tags_display}", expanded=(i==0)):
                         rcol1, rcol2, rcol3 = st.columns(3)
-                        rcol1.metric("Distance", f"{route.get('distance_km', 0):.2f} km")
-                        rcol2.metric("Duration", route.get("duration_str", "N/A"))
-                        rcol3.metric("Score", f"{route.get('score', 0):.1f}")
+                        distance_km = route.get('total_distance', 0) / 1000
+                        rcol1.metric("Distance", f"{distance_km:.2f} km")
+                        rcol2.metric("Duration", route.get("duration_display", "N/A"))
+                        rcol3.metric("Road Quality", f"{route.get('road_quality_score', 0):.0f}/100")
                         
                         tags = route.get("tags", [])
                         if tags:
                             st.write("**Tags:**", ", ".join(tags))
+                        
+                        # Show warnings if any
+                        warnings = route.get("segments_warning_localized", route.get("segments_warning", []))
+                        if warnings:
+                            st.warning(f"⚠️ {len(warnings)} segment warning(s) on this route")
 
 # ============== Segments ==============
 elif menu == "📍 Segments":
