@@ -11,14 +11,7 @@ from streamlit_folium import st_folium
 from datetime import datetime
 
 # ============== Configuration ==============
-# Change this to your deployed backend URL when deploying
-# For local: "http://127.0.0.1:8000"
-# For cloud: "https://your-backend.railway.app" or similar
-BACKEND_URL = st.sidebar.text_input(
-    "Backend URL", 
-    value="http://127.0.0.1:8000",
-    help="Enter your FastAPI backend URL"
-)
+BACKEND_URL = "https://huxuyan.onrender.com"
 
 # ============== Page Configuration ==============
 st.set_page_config(
@@ -501,5 +494,5 @@ elif menu == "⚙️ Settings":
 
 # ============== Footer ==============
 st.sidebar.markdown("---")
-st.sidebar.caption(f"BBP Road Monitor v2.0")
+st.sidebar.caption("BBP Road Monitor v2.0")
 st.sidebar.caption(f"Backend: {BACKEND_URL}")
