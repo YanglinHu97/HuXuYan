@@ -60,56 +60,148 @@ def get_seg_coords(seg):
     end_lon = seg.get("end_lon") or seg.get("to_lon", 0)
     return start_lat, start_lon, end_lat, end_lon
 
+def api_patch(endpoint: str, json_data: dict = None):
+    """Make PATCH request to backend API."""
+    try:
+        resp = requests.patch(f"{BACKEND_URL}{endpoint}", json=json_data, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except:
+        return None
+
+# ============== Translations ==============
+TRANSLATIONS = {
+    "en": {
+        "dashboard": "Dashboard",
+        "route_planning": "Route Planning",
+        "segments": "Segments",
+        "reports": "Reports",
+        "trips": "Trips",
+        "auto_detection": "Auto Detection",
+        "settings": "Settings",
+        "logout": "Logout",
+        "logged_in": "Logged in",
+        "find_routes": "Find Routes",
+        "origin": "Origin",
+        "destination": "Destination",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "save_settings": "Save Settings",
+        "language": "Language",
+        "dark_mode": "Dark Mode",
+        "notifications": "Notifications",
+    },
+    "zh": {
+        "dashboard": "仪表板",
+        "route_planning": "路线规划",
+        "segments": "路段",
+        "reports": "报告",
+        "trips": "行程",
+        "auto_detection": "自动检测",
+        "settings": "设置",
+        "logout": "退出登录",
+        "logged_in": "已登录",
+        "find_routes": "查找路线",
+        "origin": "起点",
+        "destination": "终点",
+        "latitude": "纬度",
+        "longitude": "经度",
+        "save_settings": "保存设置",
+        "language": "语言",
+        "dark_mode": "深色模式",
+        "notifications": "通知",
+    },
+    "it": {
+        "dashboard": "Cruscotto",
+        "route_planning": "Pianificazione Percorso",
+        "segments": "Segmenti",
+        "reports": "Rapporti",
+        "trips": "Viaggi",
+        "auto_detection": "Rilevamento Auto",
+        "settings": "Impostazioni",
+        "logout": "Esci",
+        "logged_in": "Connesso",
+        "find_routes": "Trova Percorsi",
+        "origin": "Origine",
+        "destination": "Destinazione",
+        "latitude": "Latitudine",
+        "longitude": "Longitudine",
+        "save_settings": "Salva Impostazioni",
+        "language": "Lingua",
+        "dark_mode": "Modalità Scura",
+        "notifications": "Notifiche",
+    }
+}
+
+def t(key: str) -> str:
+    """Translate a key to current language."""
+    lang = st.session_state.get("language", "en")
+    return TRANSLATIONS.get(lang, TRANSLATIONS["en"]).get(key, key)
+
 # ============== Session State ==============
 if "user" not in st.session_state:
     st.session_state.user = None
 if "language" not in st.session_state:
     st.session_state.language = "en"
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
 if "current_page" not in st.session_state:
     st.session_state.current_page = "📊 Dashboard"
 
-# ============== Custom CSS ==============
+# ============== Dynamic CSS based on Dark Mode ==============
+if st.session_state.dark_mode:
+    st.markdown("""
+    <style>
+        /* Dark mode for main content */
+        .stApp {
+            background-color: #1a1a2e !important;
+            color: #ffffff !important;
+        }
+        .stApp * {
+            color: #ffffff !important;
+        }
+        .stTextInput input, .stSelectbox select, .stNumberInput input {
+            background-color: #2d2d44 !important;
+            color: #ffffff !important;
+            border-color: #444 !important;
+        }
+        .stButton button {
+            background-color: #667eea !important;
+            color: white !important;
+        }
+        [data-testid="stMetric"] {
+            background-color: #2d2d44 !important;
+            padding: 10px !important;
+            border-radius: 8px !important;
+        }
+        .stExpander {
+            background-color: #2d2d44 !important;
+        }
+        /* Sidebar styling - dark */
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #0d0d1a 0%, #1a1a2e 100%);
+        }
+        [data-testid="stSidebar"] * {
+            color: #ffffff !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+        /* Light mode sidebar styling */
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+        }
+        [data-testid="stSidebar"] * {
+            color: #ffffff !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Common CSS
 st.markdown("""
 <style>
-    /* Sidebar styling */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-    }
-    [data-testid="stSidebar"] * {
-        color: #ffffff !important;
-    }
-    
-    /* Navigation items - block style like GitHub */
-    .nav-item {
-        display: flex;
-        align-items: center;
-        padding: 12px 16px;
-        margin: 4px 0;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-    .nav-item:hover {
-        background: rgba(255,255,255,0.15);
-        border-color: rgba(255,255,255,0.2);
-    }
-    .nav-item.active {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-color: transparent;
-    }
-    .nav-icon {
-        font-size: 1.2rem;
-        margin-right: 12px;
-        width: 24px;
-        text-align: center;
-    }
-    .nav-text {
-        font-size: 0.95rem;
-        font-weight: 500;
-    }
-    
     /* User profile card */
     .user-card {
         background: rgba(255,255,255,0.1);
@@ -130,23 +222,9 @@ st.markdown("""
         margin-right: 12px;
     }
     
-    /* Hide default radio buttons */
-    [data-testid="stSidebar"] .stRadio > div {
-        display: none;
-    }
-    
     /* Main content improvements */
     .main .block-container {
         padding-top: 2rem;
-    }
-    
-    /* Cards */
-    .info-card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        border: 1px solid #e0e0e0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -155,14 +233,26 @@ st.markdown("""
 with st.sidebar:
     st.markdown("## 🚲 BBP Road Monitor")
     
-    # Language selector
-    languages = {"en": "English", "zh": "中文", "it": "Italiano"}
-    st.session_state.language = st.selectbox(
+    # Language selector - actually changes language immediately
+    lang_options = ["en", "zh", "it"]
+    lang_labels = {"en": "🇬🇧 English", "zh": "🇨🇳 中文", "it": "🇮🇹 Italiano"}
+    current_lang_idx = lang_options.index(st.session_state.language) if st.session_state.language in lang_options else 0
+    
+    new_lang = st.selectbox(
         "🌐 Language",
-        options=list(languages.keys()),
-        format_func=lambda x: languages[x],
-        label_visibility="collapsed"
+        options=lang_options,
+        format_func=lambda x: lang_labels[x],
+        index=current_lang_idx,
+        key="lang_selector"
     )
+    
+    # Update language if changed
+    if new_lang != st.session_state.language:
+        st.session_state.language = new_lang
+        # Also save to backend if user is logged in
+        if st.session_state.user:
+            api_patch(f"/api/users/{st.session_state.user['id']}/settings", {"language": new_lang})
+        st.rerun()
 
 # ============== Login Section ==============
 if st.session_state.user is None:
@@ -179,6 +269,11 @@ if st.session_state.user is None:
                 result = api_post("/api/users", {"username": username.strip()})
                 if result:
                     st.session_state.user = result
+                    # Load user settings after login
+                    settings = api_get(f"/api/users/{result['id']}/settings")
+                    if settings:
+                        st.session_state.language = settings.get("language", "en")
+                        st.session_state.dark_mode = settings.get("dark_mode", False)
                     st.rerun()
             else:
                 st.warning("Please enter a username")
@@ -201,37 +296,40 @@ with st.sidebar:
             <div class="user-avatar">👤</div>
             <div>
                 <div style="font-weight: 600; font-size: 1rem;">{user['username']}</div>
-                <div style="font-size: 0.8rem; opacity: 0.7;">Logged in</div>
+                <div style="font-size: 0.8rem; opacity: 0.7;">{t("logged_in")}</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    if st.button("🚪 Logout", use_container_width=True):
+    if st.button(f"🚪 {t('logout')}", use_container_width=True):
         st.session_state.user = None
+        st.session_state.dark_mode = False
+        st.session_state.language = "en"
         st.rerun()
     
     st.markdown("---")
     st.markdown("#### Navigation")
     
-    # Block-style navigation
+    # Block-style navigation with translations
     nav_items = [
-        ("📊", "Dashboard"),
-        ("🗺️", "Route Planning"),
-        ("📍", "Segments"),
-        ("📝", "Reports"),
-        ("🚴", "Trips"),
-        ("📡", "Auto Detection"),
-        ("⚙️", "Settings")
+        ("📊", "dashboard", "Dashboard"),
+        ("🗺️", "route_planning", "Route Planning"),
+        ("📍", "segments", "Segments"),
+        ("📝", "reports", "Reports"),
+        ("🚴", "trips", "Trips"),
+        ("📡", "auto_detection", "Auto Detection"),
+        ("⚙️", "settings", "Settings")
     ]
     
-    for icon, name in nav_items:
-        full_name = f"{icon} {name}"
+    for icon, key, default_name in nav_items:
+        full_name = f"{icon} {default_name}"  # Internal key stays English
+        display_name = f"{icon}  {t(key)}"
         is_active = st.session_state.current_page == full_name
         
         if st.button(
-            f"{icon}  {name}",
-            key=f"nav_{name}",
+            display_name,
+            key=f"nav_{key}",
             use_container_width=True,
             type="primary" if is_active else "secondary"
         ):
@@ -552,19 +650,119 @@ elif menu == "🚴 Trips":
 # ============== Auto Detection ==============
 elif menu == "📡 Auto Detection":
     st.title("📡 Automatic Road Condition Detection")
-    st.markdown("Simulate accelerometer data to detect road anomalies.")
+    st.markdown("Real-time GPS location, speed detection, and road anomaly analysis.")
+    
+    # Initialize location session state
+    if "gps_lat" not in st.session_state:
+        st.session_state.gps_lat = 45.0703
+    if "gps_lon" not in st.session_state:
+        st.session_state.gps_lon = 7.6869
+    if "gps_speed" not in st.session_state:
+        st.session_state.gps_speed = 0.0
+    if "gps_accuracy" not in st.session_state:
+        st.session_state.gps_accuracy = 0.0
+    
+    # GPS Location Section
+    st.subheader("📍 Real-time GPS Location")
+    
+    # JavaScript for getting real GPS location
+    gps_html = """
+    <div id="gps-container" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0; color: white;">🛰️ GPS Status</h3>
+                <p id="gps-status" style="margin: 5px 0; opacity: 0.9;">Click button to get location...</p>
+            </div>
+            <button id="gps-btn" onclick="getLocation()" style="background: white; color: #667eea; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px;">
+                📍 Get My Location
+            </button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px;">
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 0.8rem; opacity: 0.8;">Latitude</div>
+                <div id="lat-value" style="font-size: 1.3rem; font-weight: bold;">--</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 0.8rem; opacity: 0.8;">Longitude</div>
+                <div id="lon-value" style="font-size: 1.3rem; font-weight: bold;">--</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 0.8rem; opacity: 0.8;">Speed</div>
+                <div id="speed-value" style="font-size: 1.3rem; font-weight: bold;">-- km/h</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 0.8rem; opacity: 0.8;">Accuracy</div>
+                <div id="accuracy-value" style="font-size: 1.3rem; font-weight: bold;">-- m</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    function getLocation() {
+        document.getElementById('gps-status').innerText = '🔄 Acquiring GPS signal...';
+        document.getElementById('gps-btn').disabled = true;
+        
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    var lat = position.coords.latitude;
+                    var lon = position.coords.longitude;
+                    var speed = position.coords.speed;
+                    var accuracy = position.coords.accuracy;
+                    
+                    document.getElementById('lat-value').innerText = lat.toFixed(6);
+                    document.getElementById('lon-value').innerText = lon.toFixed(6);
+                    document.getElementById('speed-value').innerText = (speed ? (speed * 3.6).toFixed(1) : '0') + ' km/h';
+                    document.getElementById('accuracy-value').innerText = accuracy.toFixed(0) + ' m';
+                    document.getElementById('gps-status').innerText = '✅ Location acquired successfully!';
+                    document.getElementById('gps-btn').disabled = false;
+                    document.getElementById('gps-btn').innerText = '🔄 Refresh Location';
+                    
+                    // Store in hidden inputs for Streamlit
+                    window.parent.postMessage({type: 'gps_data', lat: lat, lon: lon, speed: speed || 0, accuracy: accuracy}, '*');
+                },
+                function(error) {
+                    document.getElementById('gps-status').innerText = '❌ Error: ' + error.message;
+                    document.getElementById('gps-btn').disabled = false;
+                },
+                {enableHighAccuracy: true, timeout: 10000, maximumAge: 0}
+            );
+        } else {
+            document.getElementById('gps-status').innerText = '❌ Geolocation not supported';
+        }
+    }
+    </script>
+    """
+    st.components.v1.html(gps_html, height=220)
+    
+    # Manual input as fallback
+    with st.expander("✏️ Manual Location Input (if GPS unavailable)"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            manual_lat = st.number_input("Latitude", value=45.0703, format="%.6f", key="manual_lat")
+        with col2:
+            manual_lon = st.number_input("Longitude", value=7.6869, format="%.6f", key="manual_lon")
+        with col3:
+            manual_speed = st.number_input("Speed (km/h)", value=15.0, min_value=0.0, max_value=100.0, key="manual_speed")
+    
+    st.markdown("---")
     
     # Sensor simulation
-    st.subheader("📊 Sensor Data Simulation")
+    st.subheader("📊 Accelerometer Data")
     
     col1, col2 = st.columns(2)
     with col1:
-        speed = st.slider("Current Speed (km/h)", 0, 50, 18)
+        use_manual_speed = st.checkbox("Use manual speed input", value=False)
+        if use_manual_speed:
+            speed = manual_speed
+        else:
+            speed = st.session_state.gps_speed * 3.6 if st.session_state.gps_speed > 0 else 15.0
+        st.metric("🚴 Current Speed", f"{speed:.1f} km/h")
     with col2:
-        severity = st.selectbox("Simulate Event", ["Normal", "Bump", "Pothole", "Severe"])
+        severity = st.selectbox("Simulate Road Event", ["Normal Riding", "Small Bump", "Pothole", "Severe Damage"])
     
     # Generate accelerometer data based on severity
-    severity_multiplier = {"Normal": 1, "Bump": 3, "Pothole": 5, "Severe": 8}
+    severity_multiplier = {"Normal Riding": 1, "Small Bump": 3, "Pothole": 5, "Severe Damage": 8}
     mult = severity_multiplier.get(severity, 1)
     
     sensor_data = pd.DataFrame(
@@ -574,12 +772,20 @@ elif menu == "📡 Auto Detection":
     
     st.line_chart(sensor_data)
     
-    # Detection thresholds (from your backend)
+    # Detection thresholds
     max_accel = sensor_data.abs().max().max()
-    st.metric("Peak Acceleration", f"{max_accel:.1f} m/s²")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📈 Peak Acceleration", f"{max_accel:.1f} m/s²")
+    with col2:
+        st.metric("📊 Avg Acceleration", f"{sensor_data.abs().mean().mean():.1f} m/s²")
+    with col3:
+        detection_label = "SEVERE" if max_accel > 25 else "POTHOLE" if max_accel > 15 else "BUMP" if max_accel > 8 else "SMOOTH"
+        st.metric("🔍 Detection", detection_label)
     
     if max_accel > 25:
-        st.error("🚨 SEVERE - Major road damage detected!")
+        st.error("🚨 SEVERE - Major road damage detected! Report recommended.")
     elif max_accel > 15:
         st.warning("⚠️ POTHOLE - Significant road defect detected!")
     elif max_accel > 8:
@@ -589,7 +795,7 @@ elif menu == "📡 Auto Detection":
     
     # Submit detection to segment
     st.markdown("---")
-    st.subheader("📤 Submit Detection")
+    st.subheader("📤 Submit Detection Report")
     
     segments = api_get("/api/segments", {"user_id": user_id})
     if segments:
@@ -600,14 +806,14 @@ elif menu == "📡 Auto Detection":
             format_func=lambda x: segment_options[x]
         )
         
-        if st.button("📤 Submit Auto-Detection"):
+        if st.button("📤 Submit Auto-Detection", use_container_width=True):
             # Prepare sensor reading
             reading = {
                 "acceleration_x": float(sensor_data["Accel_X"].iloc[-1]),
                 "acceleration_y": float(sensor_data["Accel_Y"].iloc[-1]),
                 "acceleration_z": float(sensor_data["Accel_Z"].iloc[-1]),
                 "speed_mps": speed / 3.6,
-                "gps_accuracy_m": 5.0
+                "gps_accuracy_m": st.session_state.gps_accuracy or 5.0
             }
             result = api_post(f"/api/segments/{segment_id}/auto-detect", reading)
             if result:
@@ -615,38 +821,101 @@ elif menu == "📡 Auto Detection":
 
 # ============== Settings ==============
 elif menu == "⚙️ Settings":
-    st.title("⚙️ Settings")
+    st.title(f"⚙️ {t('settings')}")
     
-    # Fetch current settings
+    # Fetch current settings from backend
     settings = api_get(f"/api/users/{user_id}/settings")
+    if settings:
+        # Sync session state with backend settings
+        st.session_state.language = settings.get("language", "en")
+        st.session_state.dark_mode = settings.get("dark_mode", False)
     
-    st.subheader("🌐 Language Preference")
+    st.subheader(f"🌐 {t('language')}")
+    current_lang_index = ["en", "zh", "it"].index(st.session_state.language) if st.session_state.language in ["en", "zh", "it"] else 0
     new_lang = st.selectbox(
-        "Select Language",
+        t("language"),
         options=["en", "zh", "it"],
-        format_func=lambda x: {"en": "English", "zh": "中文", "it": "Italiano"}.get(x, x),
-        index=["en", "zh", "it"].index(settings.get("language", "en")) if settings else 0
+        format_func=lambda x: {"en": "🇬🇧 English", "zh": "🇨🇳 中文", "it": "🇮🇹 Italiano"}.get(x, x),
+        index=current_lang_index,
+        label_visibility="collapsed"
     )
     
-    st.subheader("🎨 Display Settings")
-    dark_mode = st.toggle("Dark Mode", value=settings.get("dark_mode", False) if settings else False)
+    st.subheader(f"🎨 {t('dark_mode')}")
+    dark_mode = st.toggle(t("dark_mode"), value=st.session_state.dark_mode)
     
-    st.subheader("🔔 Notifications")
-    notifications = st.toggle("Enable Notifications", value=settings.get("notifications", True) if settings else True)
+    st.subheader(f"🔔 {t('notifications')}")
+    notifications = st.toggle(t("notifications"), value=settings.get("notifications_enabled", True) if settings else True)
     
-    if st.button("💾 Save Settings"):
-        result = api_post(f"/api/users/{user_id}/settings", {
+    if st.button(f"💾 {t('save_settings')}", use_container_width=True):
+        # Use PATCH to update settings
+        result = api_patch(f"/api/users/{user_id}/settings", {
             "language": new_lang,
             "dark_mode": dark_mode,
-            "notifications": notifications
+            "notifications_enabled": notifications
         })
         if result:
+            # Update session state immediately
+            st.session_state.language = new_lang
+            st.session_state.dark_mode = dark_mode
             st.success("✅ Settings saved!")
             st.rerun()
+        else:
+            st.error("Failed to save settings")
     
     st.markdown("---")
-    st.subheader("ℹ️ User Information")
-    st.json(user)
+    st.subheader("ℹ️ User Profile")
+    
+    # Beautiful user profile card
+    created_date = user.get('created_at', '')[:10] if user.get('created_at') else 'Unknown'
+    
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 30px; color: white; box-shadow: 0 10px 40px rgba(102,126,234,0.3);">
+        <div style="display: flex; align-items: center; margin-bottom: 20px;">
+            <div style="width: 80px; height: 80px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-right: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                👤
+            </div>
+            <div>
+                <h2 style="margin: 0; color: white; font-size: 1.8rem;">{user['username']}</h2>
+                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 1rem;">BBP Road Monitor User</p>
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 5px;">🆔 User ID</div>
+                <div style="font-size: 1.4rem; font-weight: bold;">{user['id']}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 5px;">📅 Member Since</div>
+                <div style="font-size: 1.1rem; font-weight: bold;">{created_date}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 5px;">🌐 Language</div>
+                <div style="font-size: 1.1rem; font-weight: bold;">{st.session_state.language.upper()}</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Activity stats
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("##### 📊 Your Activity")
+    
+    # Fetch user stats
+    trips = api_get("/api/trips", {"user_id": user_id}) or []
+    reports = api_get("/api/reports") or []
+    user_reports = [r for r in reports if r.get("user_id") == user_id]
+    segments = api_get("/api/segments", {"user_id": user_id}) or []
+    
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    with stat_col1:
+        st.metric("🚴 Trips", len(trips))
+    with stat_col2:
+        st.metric("📝 Reports", len(user_reports))
+    with stat_col3:
+        st.metric("📍 Segments", len(segments))
+    with stat_col4:
+        total_distance = sum(t.get('distance_km', 0) for t in trips)
+        st.metric("📏 Total Distance", f"{total_distance:.1f} km")
 
 # ============== Footer ==============
 st.sidebar.markdown("---")
