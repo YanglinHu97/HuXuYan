@@ -148,6 +148,14 @@ TRANSLATIONS = {
         "connection_error": "Cannot connect to server",
         "api_error": "API Error",
         "routes_found": "routes found",
+        "requesting_location": "Requesting location...",
+        "allow_location": "Please allow location access",
+        "location_acquired": "Location acquired",
+        "gps_active": "GPS signal active",
+        "location_unavailable": "Location unavailable",
+        "geolocation_not_supported": "Geolocation not supported",
+        "using_default": "Using default location",
+        "speed_help": "Use this if GPS speed is not available",
     },
     "zh": {
         "app_name": "BBP 道路监测",
@@ -282,6 +290,14 @@ TRANSLATIONS = {
         "connection_error": "无法连接到服务器",
         "api_error": "接口错误",
         "routes_found": "条路线",
+        "requesting_location": "正在获取位置...",
+        "allow_location": "请允许位置访问",
+        "location_acquired": "位置已获取",
+        "gps_active": "GPS信号活跃",
+        "location_unavailable": "无法获取位置",
+        "geolocation_not_supported": "不支持地理定位",
+        "using_default": "使用默认位置",
+        "speed_help": "如果GPS速度不可用，请使用此滑块",
     },
     "it": {
         "app_name": "BBP Monitoraggio Stradale",
@@ -416,6 +432,14 @@ TRANSLATIONS = {
         "connection_error": "Impossibile connettersi al server",
         "api_error": "Errore API",
         "routes_found": "percorsi trovati",
+        "requesting_location": "Richiesta posizione...",
+        "allow_location": "Consenti accesso alla posizione",
+        "location_acquired": "Posizione acquisita",
+        "gps_active": "Segnale GPS attivo",
+        "location_unavailable": "Posizione non disponibile",
+        "geolocation_not_supported": "Geolocalizzazione non supportata",
+        "using_default": "Utilizzo posizione predefinita",
+        "speed_help": "Usa questo se la velocita GPS non e disponibile",
     }
 }
 
@@ -825,7 +849,7 @@ if menu == "dashboard":
     col1, col2 = st.columns([2, 1])
     with col1:
         st.markdown(f"##### {t('road_segments')}")
-        m = folium.Map(location=[41.9028, 12.4964], zoom_start=12, tiles="CartoDB positron")
+        m = folium.Map(location=[41.9028, 12.4964], zoom_start=12)
         
         for seg in segments[:20]:
             start_lat, start_lon, end_lat, end_lon = get_seg_coords(seg)
@@ -888,7 +912,7 @@ elif menu == "route_planning":
         if routes:
             st.success(f"{t('route_results')}: {len(routes)} {t('routes_found')}")
             
-            m = folium.Map(location=[origin_lat, origin_lon], zoom_start=14, tiles="CartoDB positron")
+            m = folium.Map(location=[origin_lat, origin_lon], zoom_start=14)
             
             folium.Marker([origin_lat, origin_lon], popup=t("origin"), 
                          icon=folium.Icon(color="green")).add_to(m)
@@ -918,7 +942,7 @@ elif menu == "segments":
         st.markdown(f"##### {t('road_segments')}")
         
         if segments:
-            m = folium.Map(location=[41.9028, 12.4964], zoom_start=12, tiles="CartoDB positron")
+            m = folium.Map(location=[41.9028, 12.4964], zoom_start=12)
             
             for seg in segments:
                 start_lat, start_lon, end_lat, end_lon = get_seg_coords(seg)
@@ -1095,11 +1119,95 @@ elif menu == "trips":
 # ============== Auto Detection ==============
 elif menu == "auto_detection":
     st.title(t("auto_detection"))
+    
+    # Real GPS Location via JavaScript
+    st.markdown(f"##### {t('location')}")
+    
+    # Initialize location in session state
+    if "gps_lat" not in st.session_state:
+        st.session_state.gps_lat = 41.9028
+    if "gps_lon" not in st.session_state:
+        st.session_state.gps_lon = 12.4964
+    if "gps_speed" not in st.session_state:
+        st.session_state.gps_speed = 0.0
+    
+    # JavaScript for getting real GPS location and speed
+    st.components.v1.html("""
+    <div id="gps-status" style="padding: 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 16px; font-family: 'Inter', sans-serif;">
+        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <span id="status-icon" style="font-size: 24px; margin-right: 12px;">📍</span>
+            <div>
+                <div id="status-text" style="font-weight: 600;">Requesting location...</div>
+                <div id="status-sub" style="font-size: 13px; color: #666;">Please allow location access</div>
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px;">
+            <div style="background: white; padding: 12px; border-radius: 6px; text-align: center;">
+                <div style="font-size: 12px; color: #666;">Latitude</div>
+                <div id="lat-value" style="font-size: 16px; font-weight: 600;">--</div>
+            </div>
+            <div style="background: white; padding: 12px; border-radius: 6px; text-align: center;">
+                <div style="font-size: 12px; color: #666;">Longitude</div>
+                <div id="lon-value" style="font-size: 16px; font-weight: 600;">--</div>
+            </div>
+            <div style="background: white; padding: 12px; border-radius: 6px; text-align: center;">
+                <div style="font-size: 12px; color: #666;">Speed (km/h)</div>
+                <div id="speed-value" style="font-size: 16px; font-weight: 600; color: #1a73e8;">--</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        let watchId = null;
+        const statusIcon = document.getElementById('status-icon');
+        const statusText = document.getElementById('status-text');
+        const statusSub = document.getElementById('status-sub');
+        const latValue = document.getElementById('lat-value');
+        const lonValue = document.getElementById('lon-value');
+        const speedValue = document.getElementById('speed-value');
+        
+        if ("geolocation" in navigator) {
+            watchId = navigator.geolocation.watchPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const speed = position.coords.speed;
+                    const speedKmh = speed ? (speed * 3.6).toFixed(1) : '0.0';
+                    
+                    statusIcon.textContent = '✅';
+                    statusText.textContent = 'Location acquired';
+                    statusSub.textContent = 'GPS signal active';
+                    latValue.textContent = lat.toFixed(6);
+                    lonValue.textContent = lon.toFixed(6);
+                    speedValue.textContent = speedKmh;
+                    
+                    // Store in window for Streamlit to access
+                    window.gpsData = {lat: lat, lon: lon, speed: parseFloat(speedKmh)};
+                },
+                function(error) {
+                    statusIcon.textContent = '⚠️';
+                    statusText.textContent = 'Location unavailable';
+                    statusSub.textContent = error.message;
+                    latValue.textContent = '41.9028';
+                    lonValue.textContent = '12.4964';
+                    speedValue.textContent = '0.0';
+                },
+                {enableHighAccuracy: true, timeout: 10000, maximumAge: 1000}
+            );
+        } else {
+            statusIcon.textContent = '❌';
+            statusText.textContent = 'Geolocation not supported';
+            statusSub.textContent = 'Using default location';
+        }
+    </script>
+    """, height=180)
+    
+    st.markdown("---")
     st.markdown(f"##### {t('sensor_simulation')}")
     
     col1, col2 = st.columns(2)
     with col1:
-        speed = st.slider(f"{t('current_speed')} (km/h)", 0, 50, 18)
+        # Manual speed input as fallback
+        speed = st.slider(f"{t('current_speed')} (km/h)", 0, 50, 18, help="Use this if GPS speed is not available")
     with col2:
         severity_options = {
             "Normal": t("normal"),
@@ -1123,7 +1231,7 @@ elif menu == "auto_detection":
     
     st.line_chart(sensor_data)
     
-    max_accel = sensor_data.abs().max().max()
+    max_accel = float(sensor_data.abs().values.max())
     st.metric(t("peak_acceleration"), f"{max_accel:.1f} m/s²")
     
     if max_accel > 25:
