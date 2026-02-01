@@ -230,6 +230,20 @@ TRANSLATIONS = {
         "no_sensor_data": "No sensor data recorded yet",
         "recording_time": "Recording Time",
         "acceleration": "Acceleration",
+        "altitude": "Altitude",
+        "accel_x_label": "X-axis (Left/Right)",
+        "accel_y_label": "Y-axis (Forward/Back)",
+        "accel_z_label": "Z-axis (Up/Down)",
+        "time_samples": "Time (samples)",
+        "accel_unit": "Acceleration (m/s2)",
+        "search_start": "Search start location",
+        "search_end": "Search end location",
+        "search_origin_place": "Search origin",
+        "search_destination_place": "Search destination",
+        "start_point": "Start Point",
+        "end_point": "End Point",
+        "search_place": "Search place",
+        "map_instructions": "Drag markers or click map to adjust locations",
     },
     "zh": {
         "app_title": "BBP 道路监测",
@@ -355,6 +369,20 @@ TRANSLATIONS = {
         "no_sensor_data": "暂无传感器数据",
         "recording_time": "记录时间",
         "acceleration": "加速度",
+        "altitude": "海拔",
+        "accel_x_label": "X轴（左右方向）",
+        "accel_y_label": "Y轴（前后方向）",
+        "accel_z_label": "Z轴（上下方向）",
+        "time_samples": "时间（采样点）",
+        "accel_unit": "加速度 (m/s2)",
+        "search_start": "搜索起始位置",
+        "search_end": "搜索结束位置",
+        "search_origin_place": "搜索起点",
+        "search_destination_place": "搜索终点",
+        "start_point": "起始点",
+        "end_point": "结束点",
+        "search_place": "搜索地点",
+        "map_instructions": "拖动标记或点击地图调整位置",
     },
     "it": {
         "app_title": "BBP Monitor Stradale",
@@ -480,6 +508,20 @@ TRANSLATIONS = {
         "no_sensor_data": "Nessun dato sensore",
         "recording_time": "Ora Registrazione",
         "acceleration": "Accelerazione",
+        "altitude": "Altitudine",
+        "accel_x_label": "Asse X (Sinistra/Destra)",
+        "accel_y_label": "Asse Y (Avanti/Indietro)",
+        "accel_z_label": "Asse Z (Su/Giu)",
+        "time_samples": "Tempo (campioni)",
+        "accel_unit": "Accelerazione (m/s2)",
+        "search_start": "Cerca posizione inizio",
+        "search_end": "Cerca posizione fine",
+        "search_origin_place": "Cerca origine",
+        "search_destination_place": "Cerca destinazione",
+        "start_point": "Punto Iniziale",
+        "end_point": "Punto Finale",
+        "search_place": "Cerca luogo",
+        "map_instructions": "Trascina i marcatori o clicca sulla mappa",
     }
 }
 
@@ -920,31 +962,63 @@ elif menu == "Segments":
     
     with col_form:
         st.subheader(t("add_segment"))
-        with st.form("new_segment"):
-            seg_name = st.text_input(t("road_name"), placeholder="e.g., Via Roma")
-            start_lat = st.number_input(t("start_lat"), value=45.478, format="%.4f")
-            start_lon = st.number_input(t("start_lon"), value=9.227, format="%.4f")
-            end_lat = st.number_input(t("end_lat"), value=45.479, format="%.4f")
-            end_lon = st.number_input(t("end_lon"), value=9.228, format="%.4f")
-            
-            status_options = ["optimal", "medium", "suboptimal", "maintenance"]
-            seg_status = st.selectbox(t("status"), status_options, format_func=lambda x: t(x))
-            obstacle = st.text_input(t("obstacle"), placeholder="e.g., pothole")
-            
-            if st.form_submit_button(t("create_segment")):
-                result = api_post("/api/segments", {
-                    "user_id": user_id,
-                    "road_name": seg_name,
-                    "start_lat": start_lat,
-                    "start_lon": start_lon,
-                    "end_lat": end_lat,
-                    "end_lon": end_lon,
-                    "status": seg_status,
-                    "obstacle": obstacle if obstacle else None
-                })
-                if result:
-                    st.success(t("segment_created"))
-                    st.rerun()
+        
+        # Initialize segment coordinates in session state
+        if "seg_start_lat" not in st.session_state:
+            st.session_state.seg_start_lat = 45.478
+        if "seg_start_lon" not in st.session_state:
+            st.session_state.seg_start_lon = 9.227
+        if "seg_end_lat" not in st.session_state:
+            st.session_state.seg_end_lat = 45.479
+        if "seg_end_lon" not in st.session_state:
+            st.session_state.seg_end_lon = 9.228
+        
+        seg_name = st.text_input(t("road_name"), placeholder="e.g., Via Roma", key="seg_name_input")
+        
+        # Start point place search
+        st.markdown(f"**{t('start_point')}**")
+        seg_start_search = st.text_input(t("search_place"), key="seg_start_search", placeholder="e.g., Via Roma 1, Milano")
+        if st.button(t("search"), key="seg_start_btn"):
+            coords = geocode_place(seg_start_search)
+            if coords:
+                st.session_state.seg_start_lat = coords[0]
+                st.session_state.seg_start_lon = coords[1]
+                st.success(f"✓ {coords[0]:.4f}, {coords[1]:.4f}")
+            else:
+                st.error(t("place_not_found"))
+        st.caption(f"{st.session_state.seg_start_lat:.4f}, {st.session_state.seg_start_lon:.4f}")
+        
+        # End point place search
+        st.markdown(f"**{t('end_point')}**")
+        seg_end_search = st.text_input(t("search_place"), key="seg_end_search", placeholder="e.g., Via Roma 100, Milano")
+        if st.button(t("search"), key="seg_end_btn"):
+            coords = geocode_place(seg_end_search)
+            if coords:
+                st.session_state.seg_end_lat = coords[0]
+                st.session_state.seg_end_lon = coords[1]
+                st.success(f"✓ {coords[0]:.4f}, {coords[1]:.4f}")
+            else:
+                st.error(t("place_not_found"))
+        st.caption(f"{st.session_state.seg_end_lat:.4f}, {st.session_state.seg_end_lon:.4f}")
+        
+        status_options = ["optimal", "medium", "suboptimal", "maintenance"]
+        seg_status = st.selectbox(t("status"), status_options, format_func=lambda x: t(x), key="seg_status_select")
+        obstacle = st.text_input(t("obstacle"), placeholder="e.g., pothole", key="seg_obstacle_input")
+        
+        if st.button(t("create_segment"), use_container_width=True, type="primary"):
+            result = api_post("/api/segments", {
+                "user_id": user_id,
+                "road_name": seg_name,
+                "start_lat": st.session_state.seg_start_lat,
+                "start_lon": st.session_state.seg_start_lon,
+                "end_lat": st.session_state.seg_end_lat,
+                "end_lon": st.session_state.seg_end_lon,
+                "status": seg_status,
+                "obstacle": obstacle if obstacle else None
+            })
+            if result:
+                st.success(t("segment_created"))
+                st.rerun()
 
 # ============== Reports ==============
 elif menu == "Reports":
@@ -1016,27 +1090,110 @@ elif menu == "Reports":
 elif menu == "Trips":
     st.title(t("trip_management"))
     
+    # Initialize trip coordinates in session state
+    if "trip_from_lat" not in st.session_state:
+        st.session_state.trip_from_lat = 45.478
+    if "trip_from_lon" not in st.session_state:
+        st.session_state.trip_from_lon = 9.227
+    if "trip_to_lat" not in st.session_state:
+        st.session_state.trip_to_lat = 45.464
+    if "trip_to_lon" not in st.session_state:
+        st.session_state.trip_to_lon = 9.190
+    
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader(t("start_trip"))
-        with st.form("new_trip"):
-            trip_from_lat = st.number_input(t("start_lat"), value=45.478, format="%.4f")
-            trip_from_lon = st.number_input(t("start_lon"), value=9.227, format="%.4f")
-            trip_to_lat = st.number_input(t("end_lat"), value=45.464, format="%.4f")
-            trip_to_lon = st.number_input(t("end_lon"), value=9.190, format="%.4f")
-            
-            if st.form_submit_button(t("create_trip")):
-                result = api_post("/api/trips", {
-                    "user_id": user_id,
-                    "from_lat": trip_from_lat,
-                    "from_lon": trip_from_lon,
-                    "to_lat": trip_to_lat,
-                    "to_lon": trip_to_lon
-                })
-                if result:
-                    st.success(t("trip_created"))
-                    st.rerun()
+        
+        # Origin place search
+        st.markdown(f"**{t('origin')}**")
+        trip_origin_search = st.text_input(t("search_origin_place"), key="trip_origin_search", placeholder="e.g., Milano Centrale")
+        if st.button(t("search"), key="trip_origin_btn"):
+            coords = geocode_place(trip_origin_search)
+            if coords:
+                st.session_state.trip_from_lat = coords[0]
+                st.session_state.trip_from_lon = coords[1]
+                st.success(f"✓ {coords[0]:.4f}, {coords[1]:.4f}")
+            else:
+                st.error(t("place_not_found"))
+        
+        # Destination place search
+        st.markdown(f"**{t('destination')}**")
+        trip_dest_search = st.text_input(t("search_destination_place"), key="trip_dest_search", placeholder="e.g., Duomo Milano")
+        if st.button(t("search"), key="trip_dest_btn"):
+            coords = geocode_place(trip_dest_search)
+            if coords:
+                st.session_state.trip_to_lat = coords[0]
+                st.session_state.trip_to_lon = coords[1]
+                st.success(f"✓ {coords[0]:.4f}, {coords[1]:.4f}")
+            else:
+                st.error(t("place_not_found"))
+        
+        # Map for trip start/end with draggable markers
+        st.markdown(f"**{t('map_instructions')}**")
+        trip_map = folium.Map(
+            location=[(st.session_state.trip_from_lat + st.session_state.trip_to_lat)/2, 
+                      (st.session_state.trip_from_lon + st.session_state.trip_to_lon)/2], 
+            zoom_start=12
+        )
+        
+        # Origin marker (green)
+        folium.Marker(
+            [st.session_state.trip_from_lat, st.session_state.trip_from_lon],
+            popup=t("origin"),
+            icon=folium.Icon(color="green", icon="play"),
+            draggable=True
+        ).add_to(trip_map)
+        
+        # Destination marker (red)
+        folium.Marker(
+            [st.session_state.trip_to_lat, st.session_state.trip_to_lon],
+            popup=t("destination"),
+            icon=folium.Icon(color="red", icon="flag"),
+            draggable=True
+        ).add_to(trip_map)
+        
+        # Draw line between origin and destination
+        folium.PolyLine(
+            [[st.session_state.trip_from_lat, st.session_state.trip_from_lon],
+             [st.session_state.trip_to_lat, st.session_state.trip_to_lon]],
+            color="blue",
+            weight=3,
+            opacity=0.7,
+            dash_array="5"
+        ).add_to(trip_map)
+        
+        trip_map_data = st_folium(trip_map, width=None, height=300, returned_objects=["all_drawings"], key="trip_map")
+        
+        # Update coordinates if marker was dragged
+        if trip_map_data and "last_object_clicked" in trip_map_data and trip_map_data["last_object_clicked"]:
+            clicked = trip_map_data["last_object_clicked"]
+            if "lat" in clicked and "lng" in clicked:
+                # Update origin if click is closer to origin
+                dist_to_origin = abs(clicked["lat"] - st.session_state.trip_from_lat) + abs(clicked["lng"] - st.session_state.trip_from_lon)
+                dist_to_dest = abs(clicked["lat"] - st.session_state.trip_to_lat) + abs(clicked["lng"] - st.session_state.trip_to_lon)
+                if dist_to_origin < dist_to_dest:
+                    st.session_state.trip_from_lat = clicked["lat"]
+                    st.session_state.trip_from_lon = clicked["lng"]
+                else:
+                    st.session_state.trip_to_lat = clicked["lat"]
+                    st.session_state.trip_to_lon = clicked["lng"]
+        
+        # Show current coordinates
+        st.caption(f"{t('origin')}: {st.session_state.trip_from_lat:.4f}, {st.session_state.trip_from_lon:.4f}")
+        st.caption(f"{t('destination')}: {st.session_state.trip_to_lat:.4f}, {st.session_state.trip_to_lon:.4f}")
+        
+        if st.button(t("create_trip"), use_container_width=True, type="primary"):
+            result = api_post("/api/trips", {
+                "user_id": user_id,
+                "from_lat": st.session_state.trip_from_lat,
+                "from_lon": st.session_state.trip_from_lon,
+                "to_lat": st.session_state.trip_to_lat,
+                "to_lon": st.session_state.trip_to_lon
+            })
+            if result:
+                st.success(t("trip_created"))
+                st.rerun()
     
     with col2:
         st.subheader(t("your_trips"))
@@ -1066,7 +1223,7 @@ elif menu == "Auto Detection":
                 <div><strong>Lat:</strong> <span id="lat">--</span></div>
                 <div><strong>Lon:</strong> <span id="lon">--</span></div>
                 <div><strong>Speed:</strong> <span id="speed">--</span> km/h</div>
-                <div><strong>Accuracy:</strong> <span id="acc">--</span> m</div>
+                <div><strong>Altitude:</strong> <span id="alt">--</span> m</div>
             </div>
         </div>
     </div>
@@ -1079,7 +1236,7 @@ elif menu == "Auto Detection":
                     document.getElementById('lat').textContent = p.coords.latitude.toFixed(6);
                     document.getElementById('lon').textContent = p.coords.longitude.toFixed(6);
                     document.getElementById('speed').textContent = p.coords.speed ? (p.coords.speed * 3.6).toFixed(1) : '0';
-                    document.getElementById('acc').textContent = p.coords.accuracy.toFixed(1);
+                    document.getElementById('alt').textContent = p.coords.altitude ? p.coords.altitude.toFixed(1) : 'N/A';
                 },
                 function(e) { document.getElementById('status').textContent = e.message; },
                 { enableHighAccuracy: true, timeout: 10000 }
@@ -1092,6 +1249,11 @@ elif menu == "Auto Detection":
     st.markdown("---")
     st.subheader(t("sensor_data"))
     
+    # Show axis legend
+    st.markdown(f"""
+    **{t('accel_x_label')}** | **{t('accel_y_label')}** | **{t('accel_z_label')}**
+    """)
+    
     # Fetch recorded sensor data from backend
     sensor_history = api_get("/api/sensor-readings", {"user_id": user_id})
     
@@ -1099,9 +1261,9 @@ elif menu == "Auto Detection":
         # Use real recorded data
         recent_readings = sensor_history[-50:] if len(sensor_history) > 50 else sensor_history
         sensor_data = pd.DataFrame([{
-            'Accel_X': r.get('acceleration_x', 0),
-            'Accel_Y': r.get('acceleration_y', 0),
-            'Accel_Z': r.get('acceleration_z', 0)
+            f'X ({t("accel_x_label")[:10]})': r.get('acceleration_x', 0),
+            f'Y ({t("accel_y_label")[:10]})': r.get('acceleration_y', 0),
+            f'Z ({t("accel_z_label")[:10]})': r.get('acceleration_z', 0)
         } for r in recent_readings])
         
         st.line_chart(sensor_data)
@@ -1121,7 +1283,11 @@ elif menu == "Auto Detection":
         st.info(t("no_sensor_data"))
         # Generate sample data for demo if no recorded data
         np.random.seed(int(time.time()) % 1000)
-        sensor_data = pd.DataFrame(np.random.randn(50, 3) * 0.5, columns=['Accel_X', 'Accel_Y', 'Accel_Z'])
+        sensor_data = pd.DataFrame(np.random.randn(50, 3) * 0.5, columns=[
+            f'X ({t("accel_x_label")[:10]})',
+            f'Y ({t("accel_y_label")[:10]})',
+            f'Z ({t("accel_z_label")[:10]})'
+        ])
         st.line_chart(sensor_data)
         max_accel = sensor_data.abs().max().max()
     
@@ -1169,19 +1335,10 @@ elif menu == "Settings":
     # Fetch current settings from backend
     settings = api_get(f"/api/users/{user_id}/settings")
     if settings:
-        # Sync session state with backend settings
-        st.session_state.language = settings.get("language", "en")
+        # Sync session state with backend settings (but don't override language - that's controlled by sidebar)
         st.session_state.dark_mode = settings.get("dark_mode", False)
     
-    st.subheader(t("language"))
-    current_lang_index = ["en", "zh", "it"].index(st.session_state.language) if st.session_state.language in ["en", "zh", "it"] else 0
-    new_lang = st.selectbox(
-        t("language"),
-        options=["en", "zh", "it"],
-        format_func=lambda x: {"en": "English", "zh": "中文", "it": "Italiano"}.get(x, x),
-        index=current_lang_index,
-        label_visibility="collapsed"
-    )
+    # Note: Language selector is in the sidebar, not here to avoid duplication
     
     st.subheader(t("dark_mode"))
     dark_mode = st.toggle(t("dark_mode"), value=st.session_state.dark_mode)
@@ -1190,15 +1347,14 @@ elif menu == "Settings":
     notifications = st.toggle(t("notifications"), value=settings.get("notifications_enabled", True) if settings else True)
     
     if st.button(t("save_settings"), use_container_width=True):
-        # Use PATCH to update settings
+        # Use PATCH to update settings - use current language from session state
         result = api_patch(f"/api/users/{user_id}/settings", {
-            "language": new_lang,
+            "language": st.session_state.language,
             "dark_mode": dark_mode,
             "notifications_enabled": notifications
         })
         if result:
             # Update session state immediately
-            st.session_state.language = new_lang
             st.session_state.dark_mode = dark_mode
             st.success(t("settings_saved"))
             st.rerun()
